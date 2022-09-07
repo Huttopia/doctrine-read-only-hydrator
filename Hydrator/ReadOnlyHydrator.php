@@ -264,7 +264,10 @@ PHP;
                 $signature .= '?';
             }
 
-            if ($reflectionMethod->getReturnType()->isBuiltin()) {
+            if (
+                $reflectionMethod->getReturnType() instanceof \ReflectionNamedType
+                && $reflectionMethod->getReturnType()->isBuiltin()
+            ) {
                 $returnType = static::extractNameFromReflexionType($reflectionMethod->getReturnType());
             } else {
                 switch (static::extractNameFromReflexionType($reflectionMethod->getReturnType())) {
@@ -362,7 +365,7 @@ PHP;
     {
         return '\\' . ltrim($className, '\\');
     }
-    
+
     /**
      * @param \ReflectionType $reflectionType
      * @return string
