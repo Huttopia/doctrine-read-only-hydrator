@@ -10,7 +10,7 @@
     },
     "require": {
         "php" : "^5.4.6 || ^7.0 || ^8.0",
-        "doctrine/orm": "^2.4.8"
+        "doctrine/orm": "^2.12.4"
     },
     "suggest": {
         "steevanb/doctrine-stats": "Add Doctrine stats : hydration time, lazy loaded entities, managed entities etc."
