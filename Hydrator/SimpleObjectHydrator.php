@@ -15,24 +15,21 @@ class SimpleObjectHydrator extends ArrayHydrator
     /** @var string */
     protected $rootClassName;
 
-    protected function prepare()
+    protected function prepare(): void
     {
         parent::prepare();
 
         $this->rootClassName = null;
     }
 
-    protected function cleanup()
+    protected function cleanup(): void
     {
         parent::cleanup();
 
         $this->_uow->hydrationComplete();
     }
 
-    /**
-     * @return array
-     */
-    protected function hydrateAllData()
+    protected function hydrateAllData(): array
     {
         $arrayResult = parent::hydrateAllData();
         $readOnlyResult = [];
@@ -48,12 +45,12 @@ class SimpleObjectHydrator extends ArrayHydrator
     /**
      * @return string
      */
-    protected function getRootclassName()
+    protected function getRootclassName(): string
     {
         // i don't understand when we can have more than one item in ArrayHydrator::$_rootAliases
         // so, i assume first one is the right one
         if ($this->rootClassName === null) {
-            $rootAlias = key($this->getPrivatePropertyValue($this, '_rootAliases'));
+            $rootAlias = key($this->getPrivatePropertyValue($this, 'rootAliases'));
             $this->rootClassName = $this->_rsm->aliasMap[$rootAlias];
         }
 
@@ -66,7 +63,7 @@ class SimpleObjectHydrator extends ArrayHydrator
      * @return object
      * @throws \Exception
      */
-    protected function doHydrateRowData($className, array $data)
+    protected function doHydrateRowData($className, array $data): object
     {
         $classMetaData = $this->_em->getClassMetadata($className);
         $mappings = $classMetaData->getAssociationMappings();
@@ -95,13 +92,13 @@ class SimpleObjectHydrator extends ArrayHydrator
 
             if (
                 $classMetaData->inheritanceType === ClassMetadata::INHERITANCE_TYPE_SINGLE_TABLE
-               || $classMetaData->inheritanceType === ClassMetadata::INHERITANCE_TYPE_JOINED
+                || $classMetaData->inheritanceType === ClassMetadata::INHERITANCE_TYPE_JOINED
             ) {
-               try {
-                   $property = $reflection->getProperty($name);
-               } catch (\ReflectionException $e) {
-                   continue;
-               }
+                try {
+                    $property = $reflection->getProperty($name);
+                } catch (\ReflectionException $e) {
+                    continue;
+                }
             } else {
                 $property = $reflection->getProperty($name);
             }
@@ -124,7 +121,7 @@ class SimpleObjectHydrator extends ArrayHydrator
      * @return mixed
      * @throws \Exception
      */
-    protected function createEntity(ClassMetadata $classMetaData, array $data)
+    protected function createEntity(ClassMetadata $classMetaData, array $data): mixed
     {
         $className = $this->getEntityClassName($classMetaData, $data);
         $reflection = new \ReflectionClass($className);
@@ -141,7 +138,7 @@ class SimpleObjectHydrator extends ArrayHydrator
      * @param object $entity
      * @return $this
      */
-    protected function deferPostLoadInvoking(ClassMetadata $classMetaData, $entity)
+    protected function deferPostLoadInvoking(ClassMetadata $classMetaData, $entity): self
     {
         /** @var HydrationCompleteHandler $handler */
         $handler = $this->getPrivatePropertyValue($this->_uow, 'hydrationCompleteHandler');
@@ -156,7 +153,7 @@ class SimpleObjectHydrator extends ArrayHydrator
      * @return string
      * @throws \Exception
      */
-    protected function getEntityClassName(ClassMetadata $classMetaData, array $data)
+    protected function getEntityClassName(ClassMetadata $classMetaData, array $data): string
     {
         switch ($classMetaData->inheritanceType) {
             case ClassMetadata::INHERITANCE_TYPE_NONE:
@@ -194,7 +191,7 @@ class SimpleObjectHydrator extends ArrayHydrator
      * @param array $data
      * @return ArrayCollection
      */
-    protected function hydrateOneToMany(array $mapping, $data)
+    protected function hydrateOneToMany(array $mapping, $data): ArrayCollection
     {
         $entities = [];
         foreach ($data as $key => $linkedData) {
@@ -221,7 +218,7 @@ class SimpleObjectHydrator extends ArrayHydrator
      * @param array $data
      * @return ArrayCollection
      */
-    protected function hydrateManyToMany(array $mapping, $data)
+    protected function hydrateManyToMany(array $mapping, $data): ArrayCollection
     {
         $entities = [];
         foreach ($data as $key => $linkedData) {
@@ -237,7 +234,7 @@ class SimpleObjectHydrator extends ArrayHydrator
      * @return mixed
      * @throws \Exception
      */
-    protected function getPrivatePropertyValue($object, $property)
+    protected function getPrivatePropertyValue($object, $property): mixed
     {
         $classNames = array_merge([get_class($object)], array_values(class_parents(get_class($object))));
         $classNameIndex = 0;

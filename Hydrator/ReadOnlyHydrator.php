@@ -26,7 +26,7 @@ class ReadOnlyHydrator extends SimpleObjectHydrator
      * @return mixed
      * @throws \Exception
      */
-    protected function createEntity(ClassMetadata $classMetaData, array $data)
+    protected function createEntity(ClassMetadata $classMetaData, array $data): mixed
     {
         $className = $this->getEntityClassName($classMetaData, $data);
         $this->generateProxyFile($classMetaData, $data);
@@ -45,7 +45,7 @@ class ReadOnlyHydrator extends SimpleObjectHydrator
      * @param array $data
      * @return $this
      */
-    protected function generateProxyFile(ClassMetadata $classMetaData, array $data)
+    protected function generateProxyFile(ClassMetadata $classMetaData, array $data): self
     {
         $entityClassName = $this->getEntityClassName($classMetaData, $data);
         $proxyFilePath = $this->getProxyFilePath($entityClassName);
@@ -108,7 +108,7 @@ PHP;
      * @param string $entityClassName
      * @return string
      */
-    public function getProxyFilePath($entityClassName)
+    public function getProxyFilePath($entityClassName): string
     {
         if (isset($this->proxyFilePathsCache[$entityClassName]) === false) {
             $fileName = str_replace('\\', '_', $entityClassName) . '.php';
@@ -122,7 +122,7 @@ PHP;
      * @param string $entityClassName
      * @return string
      */
-    protected function getProxyNamespace($entityClassName)
+    protected function getProxyNamespace($entityClassName): string
     {
         if (isset($this->proxyNamespacesCache[$entityClassName]) === false) {
             $this->proxyNamespacesCache[$entityClassName] =
@@ -136,7 +136,7 @@ PHP;
      * @param string $entityClassName
      * @return string
      */
-    protected function getProxyClassName($entityClassName)
+    protected function getProxyClassName($entityClassName): string
     {
         if (isset($this->proxyClassNamesCache[$entityClassName]) === false) {
             $this->proxyClassNamesCache[$entityClassName] =
@@ -153,7 +153,7 @@ PHP;
      *
      * @return string
      */
-    protected function getProxyDirectory()
+    protected function getProxyDirectory(): string
     {
         /** @var ProxyGenerator $proxyGenerator */
         $proxyGenerator = $this->getPrivatePropertyValue($this->_em->getProxyFactory(), 'proxyGenerator');
@@ -172,7 +172,7 @@ PHP;
      * @param array $properties
      * @return array
      */
-    protected function getUsedProperties(\ReflectionMethod $reflectionMethod, $properties)
+    protected function getUsedProperties(\ReflectionMethod $reflectionMethod, $properties): array
     {
         $classLines = file($reflectionMethod->getFileName());
         $methodLines = array_slice(
@@ -206,7 +206,7 @@ PHP;
      * @return array
      * @throws PrivateMethodShouldNotAccessPropertiesException
      */
-    protected function getPhpForProxyMethods(ClassMetadata $classMetaData, $entityClassName)
+    protected function getPhpForProxyMethods(ClassMetadata $classMetaData, $entityClassName): array
     {
         $return = [];
         $reflectionClass = new \ReflectionClass($entityClassName);
@@ -238,7 +238,7 @@ PHP;
      * @param array $properties
      * @return string
      */
-    protected function getPhpForMethod(\ReflectionMethod $reflectionMethod, array $properties)
+    protected function getPhpForMethod(\ReflectionMethod $reflectionMethod, array $properties): string
     {
         $signature = ($reflectionMethod->isPublic()) ? 'public' : 'protected';
         $signature .= ' function ' . $reflectionMethod->name . '(';
@@ -307,7 +307,7 @@ PHP;
      * @param \ReflectionParameter $parameter
      * @return string
      */
-    protected function getPhpForParameter(\ReflectionParameter $parameter)
+    protected function getPhpForParameter(\ReflectionParameter $parameter): string
     {
         $php = null;
         if (
@@ -361,7 +361,7 @@ PHP;
      * @param string $className
      * @return string
      */
-    protected function getFullQualifiedClassName($className)
+    protected function getFullQualifiedClassName($className): string
     {
         return '\\' . ltrim($className, '\\');
     }
@@ -371,7 +371,7 @@ PHP;
      * @return string
      * @see https://github.com/symfony/symfony/blob/v3.2.6/src/Symfony/Component/PropertyInfo/Extractor/ReflectionExtractor.php#L215
      */
-    protected static function extractNameFromReflexionType(\ReflectionType $reflectionType)
+    protected static function extractNameFromReflexionType(\ReflectionType $reflectionType): string
     {
         return $reflectionType instanceof \ReflectionNamedType
             ? $reflectionType->getName()
