@@ -222,7 +222,9 @@ class SimpleObjectHydrator extends ArrayHydrator
     {
         $entities = [];
         foreach ($data as $key => $linkedData) {
-            $entities[$key] = $this->doHydrateRowData($mapping['targetEntity'], $linkedData);
+            if (\is_null($linkedData) === false) {
+                $entities[$key] = $this->doHydrateRowData($mapping['targetEntity'], $linkedData);
+            }
         }
 
         return new ArrayCollection($entities);
