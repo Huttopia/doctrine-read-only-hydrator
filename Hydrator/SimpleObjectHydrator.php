@@ -106,9 +106,7 @@ class SimpleObjectHydrator extends ArrayHydrator
             if ($property->isPublic()) {
                 $entity->$name = $value;
             } else {
-                $property->setAccessible(true);
                 $property->setValue($entity, $value);
-                $property->setAccessible(false);
             }
         }
 
@@ -254,11 +252,6 @@ class SimpleObjectHydrator extends ArrayHydrator
             throw new \Exception(get_class($object) . '::$' . $property . ' does not exists.');
         }
 
-        $accessible = $reflection->isPublic();
-        $reflection->setAccessible(true);
-        $value = $reflection->getValue($object);
-        $reflection->setAccessible($accessible === false);
-
-        return $value;
+        return $reflection->getValue($object);
     }
 }

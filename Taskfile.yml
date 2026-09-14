@@ -1,0 +1,36 @@
+version: '3'
+
+vars:
+  DOCKER_PHP: docker compose run --rm -T php-cli
+
+tasks:
+  default:
+    cmds:
+      - task --list
+    silent: true
+
+  build:
+    desc: Construit l'image php-cli
+    cmds:
+      - docker compose build php-cli
+
+  install:
+    # composer.lock n'est pas versionné, ce paquet étant une librairie : update, pas install
+    desc: Met à jour les dépendances
+    cmds:
+      - '{{.DOCKER_PHP}} composer update'
+
+  phpunit:
+    desc: Lance la suite de tests — task phpunit -- --filter=GetPhpForParameter
+    cmds:
+      - '{{.DOCKER_PHP}} vendor/bin/phpunit --testdox {{.CLI_ARGS}}'
+
+  composer:
+    desc: Lance une commande composer — task composer -- require --dev foo/bar
+    cmds:
+      - '{{.DOCKER_PHP}} composer {{.CLI_ARGS}}'
+
+  php:
+    desc: Lance une commande php — task php -- -v
+    cmds:
+      - '{{.DOCKER_PHP}} php {{.CLI_ARGS}}'

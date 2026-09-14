@@ -5,6 +5,7 @@ namespace steevanb\DoctrineReadOnlyHydrator\Hydrator;
 use Doctrine\Common\Proxy\ProxyGenerator;
 use Doctrine\ORM\Mapping\ClassMetadata;
 use steevanb\DoctrineReadOnlyHydrator\Entity\ReadOnlyEntityInterface;
+use steevanb\DoctrineReadOnlyHydrator\Exception\DefaultValueCantBeRenderedException;
 use steevanb\DoctrineReadOnlyHydrator\Exception\PrivateMethodShouldNotAccessPropertiesException;
 
 class ReadOnlyHydrator extends SimpleObjectHydrator
@@ -255,38 +256,19 @@ PHP;
         });
         $propertiesToAssert = implode(', ', $properties);
 
-        if (
-            version_compare(PHP_VERSION, '7.0.0', '>=')
-            && $reflectionMethod->hasReturnType()
-        ) {
-            $signature .= ': ';
-            if (version_compare(PHP_VERSION, '7.1.0', '>=') && $reflectionMethod->getReturnType()->allowsNull()) {
-                $signature .= '?';
-            }
-
+        $reflectionReturnType = $reflectionMethod->getReturnType();
+        if ($reflectionReturnType instanceof \ReflectionType) {
             if (
-                $reflectionMethod->getReturnType() instanceof \ReflectionNamedType
-                && $reflectionMethod->getReturnType()->isBuiltin()
+                $reflectionReturnType instanceof \ReflectionNamedType
+                && $reflectionReturnType->getName() === 'parent'
             ) {
-                $returnType = static::extractNameFromReflexionType($reflectionMethod->getReturnType());
-            } else {
-                switch (static::extractNameFromReflexionType($reflectionMethod->getReturnType())) {
-                    case 'self':
-                        $returnType = $this->getFullQualifiedClassName(
-                            $reflectionMethod->getDeclaringClass()->getName()
-                        );
-                        break;
-                    case 'parent':
-                        throw new \Exception('Function with return type parent can\'t be overloaded.');
-                    default:
-                        $returnType = $this->getFullQualifiedClassName(
-                            static::extractNameFromReflexionType($reflectionMethod->getReturnType())
-                        );
-                }
+                throw new \Exception('Function with return type parent can\'t be overloaded.');
             }
-            $returnKeyWord = ($returnType === 'void') ? null : 'return ';
 
-            $signature .= $returnType;
+            $returnType = $this->getPhpForType($reflectionReturnType, $reflectionMethod->getDeclaringClass());
+            $signature .= ': ' . $returnType;
+            // void et never interdisent tous les deux "return <expression>;"
+            $returnKeyWord = \in_array($returnType, ['void', 'never'], true) ? null : 'return ';
         } else {
             $returnKeyWord = 'return ';
         }
@@ -296,7 +278,7 @@ PHP;
     {
         \$this->assertReadOnlyPropertiesAreLoaded(array($propertiesToAssert));
 
-        ${returnKeyWord}call_user_func_array(array('parent', '$method'), func_get_args());
+        {$returnKeyWord}parent::{$method}(...func_get_args());
     }
 PHP;
 
@@ -310,50 +292,121 @@ PHP;
     protected function getPhpForParameter(\ReflectionParameter $parameter): string
     {
         $php = null;
-        if (
-            version_compare(PHP_VERSION, '7.1.0', '>=')
-            && $parameter->hasType()
-            && $parameter->getType()->allowsNull()
-        ) {
-            $php .= '?';
-        }
-        if ($parameter->getClass() instanceof \ReflectionClass) {
-            $php .= $this->getFullQualifiedClassName($parameter->getClass()->name) . ' ';
-        } elseif ($parameter->isCallable()) {
-            $php .= 'callable ';
-        } elseif ($parameter->isArray()) {
-            $php .= 'array ';
-        } elseif (
-            version_compare(PHP_VERSION, '7.0.0', '>=')
-            && $parameter->hasType()
-        ) {
-            $php .= static::extractNameFromReflexionType($parameter->getType()) . ' ';
+        $type = $parameter->getType();
+        if ($type instanceof \ReflectionType) {
+            $php .= $this->getPhpForType($type, $parameter->getDeclaringClass()) . ' ';
         }
 
         if ($parameter->isPassedByReference()) {
             $php .= '&';
         }
+        if ($parameter->isVariadic()) {
+            $php .= '...';
+        }
         $php .= '$' . $parameter->name;
 
-        if ($parameter->isDefaultValueAvailable()) {
-            $parameterDefaultValue = $parameter->getDefaultValue();
-            if ($parameter->isDefaultValueConstant()) {
-                $defaultValue = $parameter->getDefaultValueConstantName();
-            } elseif ($parameterDefaultValue === null) {
-                $defaultValue = 'null';
-            } elseif (is_bool($parameterDefaultValue)) {
-                $defaultValue = ($parameterDefaultValue === true) ? 'true' : 'false';
-            } elseif (is_string($parameterDefaultValue)) {
-                $defaultValue = '\'' . $parameterDefaultValue . '\'';
-            } elseif (is_array($parameterDefaultValue)) {
-                $defaultValue = 'array()';
-            } else {
-                $defaultValue = $parameterDefaultValue;
-            }
-            $php .= ' = ' . $defaultValue;
+        if ($parameter->isVariadic() === false && $parameter->isDefaultValueAvailable()) {
+            $php .= ' = ' . $this->getPhpForDefaultValue($parameter);
         }
 
         return $php;
+    }
+
+    protected function getPhpForType(\ReflectionType $reflectionType, \ReflectionClass $declaringClass): string
+    {
+        if ($reflectionType instanceof \ReflectionUnionType) {
+            return implode('|', array_map(
+                function (\ReflectionType $subType) use ($declaringClass): string {
+                    $php = $this->getPhpForType($subType, $declaringClass);
+
+                    return ($subType instanceof \ReflectionIntersectionType) ? '(' . $php . ')' : $php;
+                },
+                $reflectionType->getTypes()
+            ));
+        }
+
+        if ($reflectionType instanceof \ReflectionIntersectionType) {
+            return implode('&', array_map(
+                fn (\ReflectionType $subType): string => $this->getPhpForType($subType, $declaringClass),
+                $reflectionType->getTypes()
+            ));
+        }
+
+        if ($reflectionType instanceof \ReflectionNamedType === false) {
+            return static::extractNameFromReflexionType($reflectionType);
+        }
+
+        $name = $reflectionType->getName();
+        // mixed et null acceptent déjà null, les préfixer de ? est une erreur de compilation
+        $nullable = $reflectionType->allowsNull() && $name !== 'mixed' && $name !== 'null';
+
+        if ($reflectionType->isBuiltin() || $name === 'static') {
+            return ($nullable ? '?' : '') . $name;
+        }
+
+        switch ($name) {
+            case 'self':
+                $name = $declaringClass->getName();
+                break;
+            case 'parent':
+                $name = $declaringClass->getParentClass()->getName();
+                break;
+        }
+
+        return ($nullable ? '?' : '') . $this->getFullQualifiedClassName($name);
+    }
+
+    protected function getPhpForDefaultValue(\ReflectionParameter $parameter): string
+    {
+        if ($parameter->isDefaultValueConstant() === false) {
+            return $this->getPhpForValue($parameter->getDefaultValue());
+        }
+
+        $constantName = $parameter->getDefaultValueConstantName();
+        $className = strstr($constantName, '::', true);
+        if (\is_string($className)) {
+            // self, static et parent restent valides dans le proxie, qui hérite de l'entité
+            return \in_array($className, ['self', 'static', 'parent'], true)
+                ? $constantName
+                : $this->getFullQualifiedClassName($constantName);
+        }
+
+        // une constante globale est rendue résolue dans le namespace de déclaration, où elle n'existe
+        // pas forcément : seul le nom court, soumis au repli global, est alors valide dans le proxie
+        return \defined($constantName)
+            ? $this->getFullQualifiedClassName($constantName)
+            : ltrim(strrchr('\\' . $constantName, '\\'), '\\');
+    }
+
+    protected function getPhpForValue(mixed $value): string
+    {
+        if ($value === null) {
+            return 'null';
+        }
+        if (\is_bool($value)) {
+            return ($value === true) ? 'true' : 'false';
+        }
+        if ($value instanceof \UnitEnum) {
+            return var_export($value, true);
+        }
+        // var_export rendrait un ObjetQuelconque::__set_state(), qui n'est pas une expression
+        // constante : le proxie ne compilerait pas, et generateProxyFile() ne le réécrit jamais
+        if (\is_object($value)) {
+            throw new DefaultValueCantBeRenderedException($value);
+        }
+        if (\is_array($value) === false) {
+            return var_export($value, true);
+        }
+
+        $isList = array_is_list($value);
+        $items = [];
+        foreach ($value as $key => $item) {
+            $items[] = $isList
+                ? $this->getPhpForValue($item)
+                : var_export($key, true) . ' => ' . $this->getPhpForValue($item);
+        }
+
+        return '[' . implode(', ', $items) . ']';
     }
 
     /**

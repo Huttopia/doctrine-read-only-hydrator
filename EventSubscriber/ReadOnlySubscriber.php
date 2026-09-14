@@ -42,7 +42,7 @@ class ReadOnlySubscriber implements EventSubscriber
      */
     public function preFlush(PreFlushEventArgs $args)
     {
-        $unitOfWork = $args->getEntityManager()->getUnitOfWork();
+        $unitOfWork = $args->getObjectManager()->getUnitOfWork();
         $entities = array_merge(
             $unitOfWork->getScheduledEntityInsertions(),
             $unitOfWork->getScheduledEntityUpdates(),
