@@ -5,6 +5,7 @@ namespace steevanb\DoctrineReadOnlyHydrator\Hydrator;
 use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\ORM\Internal\Hydration\ArrayHydrator;
 use Doctrine\ORM\Internal\HydrationCompleteHandler;
+use Doctrine\ORM\Mapping\AssociationMapping;
 use Doctrine\ORM\Mapping\ClassMetadata;
 
 class SimpleObjectHydrator extends ArrayHydrator
@@ -26,7 +27,7 @@ class SimpleObjectHydrator extends ArrayHydrator
     {
         parent::cleanup();
 
-        $this->_uow->hydrationComplete();
+        $this->uow->hydrationComplete();
     }
 
     protected function hydrateAllData(): array
@@ -51,7 +52,7 @@ class SimpleObjectHydrator extends ArrayHydrator
         // so, i assume first one is the right one
         if ($this->rootClassName === null) {
             $rootAlias = key($this->getPrivatePropertyValue($this, 'rootAliases'));
-            $this->rootClassName = $this->_rsm->aliasMap[$rootAlias];
+            $this->rootClassName = $this->resultSetMapping()->aliasMap[$rootAlias];
         }
 
         return $this->rootClassName;
@@ -65,29 +66,21 @@ class SimpleObjectHydrator extends ArrayHydrator
      */
     protected function doHydrateRowData($className, array $data): object
     {
-        $classMetaData = $this->_em->getClassMetadata($className);
+        $classMetaData = $this->em->getClassMetadata($className);
         $mappings = $classMetaData->getAssociationMappings();
         $entity = $this->createEntity($classMetaData, $data);
         $reflection = new \ReflectionObject($entity);
 
         foreach ($data as $name => $value) {
             if (isset($mappings[$name]) && is_array($value)) {
-                switch ($mappings[$name]['type']) {
-                    case ClassMetadata::ONE_TO_ONE:
-                        $value = $this->hydrateOneToOne($mappings[$name], $value);
-                        break;
-                    case ClassMetadata::ONE_TO_MANY:
-                        $value = $this->hydrateOneToMany($mappings[$name], $value);
-                        break;
-                    case ClassMetadata::MANY_TO_ONE:
-                        $value = $this->hydrateManyToOne($mappings[$name], $value);
-                        break;
-                    case ClassMetadata::MANY_TO_MANY:
-                        $value = $this->hydrateManyToMany($mappings[$name], $value);
-                        break;
-                    default:
-                        throw new \Exception('Unknow mapping type "' . $mappings[$name]['type'] . '".');
-                }
+                $mapping = $mappings[$name];
+                $value = match (true) {
+                    $mapping->isOneToOne() => $this->hydrateOneToOne($mapping, $value),
+                    $mapping->isOneToMany() => $this->hydrateOneToMany($mapping, $value),
+                    $mapping->isManyToOne() => $this->hydrateManyToOne($mapping, $value),
+                    $mapping->isManyToMany() => $this->hydrateManyToMany($mapping, $value),
+                    default => throw new \Exception('Unknow mapping type "' . $mapping::class . '".'),
+                };
             }
 
             if (
@@ -106,9 +99,7 @@ class SimpleObjectHydrator extends ArrayHydrator
             if ($property->isPublic()) {
                 $entity->$name = $value;
             } else {
-                $property->setAccessible(true);
                 $property->setValue($entity, $value);
-                $property->setAccessible(false);
             }
         }
 
@@ -141,7 +132,7 @@ class SimpleObjectHydrator extends ArrayHydrator
     protected function deferPostLoadInvoking(ClassMetadata $classMetaData, $entity): self
     {
         /** @var HydrationCompleteHandler $handler */
-        $handler = $this->getPrivatePropertyValue($this->_uow, 'hydrationCompleteHandler');
+        $handler = $this->getPrivatePropertyValue($this->uow, 'hydrationCompleteHandler');
         $handler->deferPostLoadInvoking($classMetaData, $entity);
 
         return $this;
@@ -161,12 +152,12 @@ class SimpleObjectHydrator extends ArrayHydrator
                 break;
             case ClassMetadata::INHERITANCE_TYPE_SINGLE_TABLE:
             case ClassMetadata::INHERITANCE_TYPE_JOINED:
-                if (isset($data[$classMetaData->discriminatorColumn['name']]) === false) {
-                    $exception = 'Discriminator column "' . $classMetaData->discriminatorColumn['name'] . '" ';
+                if (isset($data[$classMetaData->discriminatorColumn->name]) === false) {
+                    $exception = 'Discriminator column "' . $classMetaData->discriminatorColumn->name . '" ';
                     $exception .= 'for "' . $classMetaData->name . '" does not exists in $data.';
                     throw new \Exception($exception);
                 }
-                $discriminator = $data[$classMetaData->discriminatorColumn['name']];
+                $discriminator = $data[$classMetaData->discriminatorColumn->name];
                 $return = $classMetaData->discriminatorMap[$discriminator];
                 break;
             default:
@@ -177,26 +168,26 @@ class SimpleObjectHydrator extends ArrayHydrator
     }
 
     /**
-     * @param array $mapping
+     * @param AssociationMapping $mapping
      * @param array $data
      * @return ArrayCollection
      */
-    protected function hydrateOneToOne(array $mapping, $data)
+    protected function hydrateOneToOne(AssociationMapping $mapping, $data)
     {
-        return $this->doHydrateRowData($mapping['targetEntity'], $data);
+        return $this->doHydrateRowData($mapping->targetEntity, $data);
     }
 
     /**
-     * @param array $mapping
+     * @param AssociationMapping $mapping
      * @param array $data
      * @return ArrayCollection
      */
-    protected function hydrateOneToMany(array $mapping, $data): ArrayCollection
+    protected function hydrateOneToMany(AssociationMapping $mapping, $data): ArrayCollection
     {
         $entities = [];
         foreach ($data as $key => $linkedData) {
             if (\is_null($linkedData) === false) {
-                $entities[$key] = $this->doHydrateRowData($mapping['targetEntity'], $linkedData);
+                $entities[$key] = $this->doHydrateRowData($mapping->targetEntity, $linkedData);
             }
         }
 
@@ -204,26 +195,26 @@ class SimpleObjectHydrator extends ArrayHydrator
     }
 
     /**
-     * @param array $mapping
+     * @param AssociationMapping $mapping
      * @param array $data
      * @return ArrayCollection
      */
-    protected function hydrateManyToOne(array $mapping, $data)
+    protected function hydrateManyToOne(AssociationMapping $mapping, $data)
     {
-        return $this->doHydrateRowData($mapping['targetEntity'], $data);
+        return $this->doHydrateRowData($mapping->targetEntity, $data);
     }
 
     /**
-     * @param array $mapping
+     * @param AssociationMapping $mapping
      * @param array $data
      * @return ArrayCollection
      */
-    protected function hydrateManyToMany(array $mapping, $data): ArrayCollection
+    protected function hydrateManyToMany(AssociationMapping $mapping, $data): ArrayCollection
     {
         $entities = [];
         foreach ($data as $key => $linkedData) {
             if (\is_null($linkedData) === false) {
-                $entities[$key] = $this->doHydrateRowData($mapping['targetEntity'], $linkedData);
+                $entities[$key] = $this->doHydrateRowData($mapping->targetEntity, $linkedData);
             }
         }
 
@@ -254,11 +245,6 @@ class SimpleObjectHydrator extends ArrayHydrator
             throw new \Exception(get_class($object) . '::$' . $property . ' does not exists.');
         }
 
-        $accessible = $reflection->isPublic();
-        $reflection->setAccessible(true);
-        $value = $reflection->getValue($object);
-        $reflection->setAccessible($accessible === false);
-
-        return $value;
+        return $reflection->getValue($object);
     }
 }

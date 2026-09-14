@@ -11,7 +11,7 @@ class AddReadOnlyHydrationModePass implements CompilerPassInterface
     /**
      * @param ContainerBuilder $container
      */
-    public function process(ContainerBuilder $container)
+    public function process(ContainerBuilder $container): void
     {
         $hydrator = [ReadOnlyHydrator::HYDRATOR_NAME, ReadOnlyHydrator::class];
         foreach ($container->getParameter('doctrine.entity_managers') as $name => $serviceName) {
