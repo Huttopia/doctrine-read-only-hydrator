@@ -11,7 +11,7 @@ class AddSimpleObjectHydrationModePass implements CompilerPassInterface
     /**
      * @param ContainerBuilder $container
      */
-    public function process(ContainerBuilder $container)
+    public function process(ContainerBuilder $container): void
     {
         $hydrator = [SimpleObjectHydrator::HYDRATOR_NAME, SimpleObjectHydrator::class];
         foreach ($container->getParameter('doctrine.entity_managers') as $name => $serviceName) {

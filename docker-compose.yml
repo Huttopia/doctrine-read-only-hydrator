@@ -1,0 +1,17 @@
+services:
+  php-cli:
+    build:
+      context: docker/php-cli
+      args:
+        PHP_VERSION: ${PHP_VERSION:-8.5}
+        UID: ${UID:-1000}
+        GID: ${GID:-1000}
+    user: php
+    working_dir: /app
+    volumes:
+      - .:/app
+      - ./docker/php-cli/php.ini:/usr/local/etc/php/php.ini
+      - composer-cache:/tmp/.composer
+
+volumes:
+  composer-cache:
