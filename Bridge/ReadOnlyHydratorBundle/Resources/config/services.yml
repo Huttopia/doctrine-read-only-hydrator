@@ -1,5 +1,10 @@
 services:
     read_only_hydrator.event_subscriber:
         class: steevanb\DoctrineReadOnlyHydrator\EventSubscriber\ReadOnlySubscriber
+        # priority 255 : le compiler pass de symfony/doctrine-bridge empile les subscribers avant les
+        # listeners à priorité égale, ce garde-fou doit rester en tête comme du temps du tag subscriber
         tags:
-            - { name: doctrine.event_subscriber }
+            - { name: doctrine.event_listener, event: prePersist, priority: 255 }
+            - { name: doctrine.event_listener, event: preFlush, priority: 255 }
+            - { name: doctrine.event_listener, event: onClassMetadataNotFound, priority: 255 }
+            - { name: doctrine.event_listener, event: postLoad, priority: 255 }

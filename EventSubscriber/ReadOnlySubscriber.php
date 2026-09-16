@@ -4,32 +4,20 @@ namespace steevanb\DoctrineReadOnlyHydrator\EventSubscriber;
 
 use Doctrine\ORM\Event\OnClassMetadataNotFoundEventArgs;
 use steevanb\DoctrineReadOnlyHydrator\Hydrator\SimpleObjectHydrator;
-use Doctrine\Common\EventSubscriber;
-use Doctrine\ORM\Event\LifecycleEventArgs;
+use Doctrine\ORM\Event\PostLoadEventArgs;
 use Doctrine\ORM\Event\PreFlushEventArgs;
-use Doctrine\ORM\Events;
+use Doctrine\ORM\Event\PrePersistEventArgs;
 use steevanb\DoctrineReadOnlyHydrator\Entity\ReadOnlyEntityInterface;
 use steevanb\DoctrineReadOnlyHydrator\Exception\ReadOnlyEntityCantBeFlushedException;
 use steevanb\DoctrineReadOnlyHydrator\Exception\ReadOnlyEntityCantBePersistedException;
 
-class ReadOnlySubscriber implements EventSubscriber
+class ReadOnlySubscriber
 {
-    /** @return array */
-    public function getSubscribedEvents()
-    {
-        return [
-            Events::prePersist,
-            Events::preFlush,
-            Events::onClassMetadataNotFound,
-            Events::postLoad
-        ];
-    }
-
     /**
-     * @param LifecycleEventArgs $args
+     * @param PrePersistEventArgs $args
      * @throws ReadOnlyEntityCantBePersistedException
      */
-    public function prePersist(LifecycleEventArgs $args)
+    public function prePersist(PrePersistEventArgs $args)
     {
         if ($this->isReadOnlyEntity($args->getObject())) {
             throw new ReadOnlyEntityCantBePersistedException($args->getObject());
@@ -42,7 +30,7 @@ class ReadOnlySubscriber implements EventSubscriber
      */
     public function preFlush(PreFlushEventArgs $args)
     {
-        $unitOfWork = $args->getEntityManager()->getUnitOfWork();
+        $unitOfWork = $args->getObjectManager()->getUnitOfWork();
         $entities = array_merge(
             $unitOfWork->getScheduledEntityInsertions(),
             $unitOfWork->getScheduledEntityUpdates(),
@@ -70,8 +58,8 @@ class ReadOnlySubscriber implements EventSubscriber
         } catch (\Exception $exception) {}
     }
 
-    /** @param LifecycleEventArgs $eventArgs */
-    public function postLoad(LifecycleEventArgs $eventArgs)
+    /** @param PostLoadEventArgs $eventArgs */
+    public function postLoad(PostLoadEventArgs $eventArgs)
     {
         if ($eventArgs->getObject() instanceof ReadOnlyEntityInterface) {
             // add ReadOnlyProxy to classMetada list
