@@ -98,7 +98,9 @@ $proxyMethodsCode
     }
 }
 PHP;
-            file_put_contents($proxyFilePath, $php);
+            $tmpFilePath = $proxyFilePath . '.' . uniqid('', true) . '.tmp';
+            file_put_contents($tmpFilePath, $php);
+            rename($tmpFilePath, $proxyFilePath);
         }
 
         return $this;
